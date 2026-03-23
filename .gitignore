@@ -1,0 +1,109 @@
+.DS_Store
+nyc-taxi-duration-prediction-self-healing-ml/.DS_Store
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# Virtual Environments
+# =========================
+.env
+.venv
+venv/
+env/
+ENV/
+conda-meta/
+*.conda
+
+# =========================
+# Jupyter Notebooks
+# =========================
+.ipynb_checkpoints
+
+# =========================
+# Data (DO NOT TRACK)
+# =========================
+data/raw/
+data/interim/
+data/processed/
+data/batches/
+data/external/
+
+# =========================
+# Model Artifacts
+# =========================
+models/
+*.pkl
+*.joblib
+*.h5
+*.onnx
+
+# =========================
+# MLflow
+# =========================
+mlruns/
+mlartifacts/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Environment / Secrets
+# =========================
+.env.*
+*.env
+secrets.yaml
+config.local.yaml
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Build / Distribution
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Docker
+# =========================
+*.tar
+docker-compose.override.yml
+
+# =========================
+# Streamlit / Dashboard
+# =========================
+.streamlit/
+
+# =========================
+# Spark
+# =========================
+spark-warehouse/
+metastore_db/
+
+# =========================
+# Temporary / Misc
+# =========================
+tmp/
+temp/
+.cache/
+
