@@ -1,0 +1,95 @@
+project:
+  name: nyc-taxi-duration-prediction
+  version: "1.0"
+
+data:
+  year: 2023
+  month: 1
+  zone_lookup_url: "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+
+  paths:
+    raw: "data/raw/rides_{year}-{month:02d}.parquet"
+    interim: "data/interim/intrim_rides_{year}-{month:02d}.parquet"
+    processed: "data/processed/processed_rides_{year}-{month:02d}.parquet"
+    zone_lookup: "data/taxi_zone_lookup.csv"
+    models: "models/"
+    logs: "logs/"
+    reports: "reports/"
+
+filters:
+  duration_min_minutes: 1.0
+  duration_max_minutes: 120.0
+  distance_min_miles: 0.0          # exclusive (> 0)
+  distance_max_miles: 50.0
+  passenger_min: 1
+  passenger_max: 6
+
+features:
+  categorical:
+    - PULocationID
+    - DOLocationID
+    - RatecodeID
+    - is_weekend
+    - is_rush_hour
+    - is_airport_trip
+  numeric:
+    - trip_distance
+    - passenger_count
+    - hour
+    - dayofweek
+    - PU_borough_id
+    - DO_borough_id
+  target: trip_duration_min
+  rush_hours: [7, 8, 9, 17, 18, 19]
+
+training:
+  val_days: 7                      # last N days of month held out for validation
+  random_state: 42
+  log_transform_target: true       # also train XGBoost on log1p(target) and compare
+
+  models:
+    dummy: {}
+    linear_regression: {}
+    random_forest:
+      n_estimators: 200
+      max_depth: 12
+      min_samples_leaf: 10
+      n_jobs: -1
+      random_state: 42
+    xgboost:
+      n_estimators: 500
+      max_depth: 8
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+      reg_alpha: 0.1
+      reg_lambda: 1.0
+      n_jobs: -1
+      random_state: 42
+      eval_metric: mae
+    lightgbm:
+      n_estimators: 500
+      max_depth: 8
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+      reg_alpha: 0.1
+      reg_lambda: 1.0
+      n_jobs: -1
+      random_state: 42
+      verbose: -1
+
+mlflow:
+  experiment_name: nyc-taxi-duration
+  tracking_uri: mlruns
+
+monitoring:
+  mae_degradation_threshold_pct: 15.0   # retrain if MAE increases by > 15%
+  feature_drift_threshold_pct: 30.0     # retrain if > 30% features show drift
+  check_interval_hours: 6
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  model_path: "models/best_model.pkl"
+  metadata_path: "models/model_metadata.json"

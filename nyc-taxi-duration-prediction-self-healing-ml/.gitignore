@@ -1,0 +1,55 @@
+# Data — large files not tracked in git
+data/raw/
+data/interim/
+data/processed/
+
+# Trained model artifacts
+models/
+
+# MLflow experiment tracking
+mlruns/
+
+# Logs
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Environment
+.env
+.venv
+venv/
+env/
+*.conda
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Evidently reports (generated)
+reports/
+
+# pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
