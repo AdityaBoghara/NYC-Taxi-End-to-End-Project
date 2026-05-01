@@ -232,7 +232,8 @@ The following columns are **excluded** from the model feature set because they a
 - `VendorID` — no meaningful duration difference between vendors (confirmed in EDA). Vendor 2 is listed as "Curb Mobility, LLC" in the 2025 data dictionary (formerly VeriFone — same fleet, rebranded)
 
 **Redundant datetime columns:**
-- `pickup_datetime`, `dropoff_datetime` — replaced by derived features
+- `pickup_datetime` — retained in the processed parquet for time-based train/val/test splits in downstream notebooks; excluded from the model feature matrix at training time
+- `dropoff_datetime` — excluded (post-trip value, causes leakage)
 - `trip_duration` (seconds) — replaced by `trip_duration_min` (target)
 
 ---
@@ -280,12 +281,57 @@ The following columns are **excluded** from the model feature set because they a
 
 ---
 
-## 13. Open Decisions (To Be Resolved)
+## 13. MLflow Backend
+
+**Decision:** Use SQLite (`mlflow.db`) as the MLflow tracking backend instead of the default filesystem store (`mlruns/`).
+
+**Rationale:**
+- MLflow 3.x deprecated the filesystem backend (February 2026) — it will be removed in a future release
+- SQLite enables the full MLflow feature set: model registry, run comparison, job execution support
+- Zero additional infrastructure — SQLite is a single file, no separate server needed
+- One-time migration: `mlflow db upgrade sqlite:///mlflow.db`
+
+**Configuration:**
+- `config.yaml`: `mlflow.tracking_uri: mlflow.db`
+- Notebooks construct the full URI at runtime: `sqlite:///{PROJECT_ROOT}/mlflow.db`
+- UI: `mlflow ui --backend-store-uri sqlite:///mlflow.db --dev`
+
+**Trade-offs:**
+- `--dev` flag required in MLflow 3.x to disable security middleware for local single-user use
+- SQLite is not suitable for multi-user concurrent writes — migrate to PostgreSQL if the project moves to a shared server
+
+---
+
+## 14. Model Selection — Baseline + AutoML
+
+**Decision:** Use a two-stage selection process: manual baseline (Notebook 3) followed by FLAML AutoML search (Notebook 4). The better model by val MAE overwrites `models/best_model.pkl`.
+
+**Rationale:**
+- Notebook 3 establishes interpretable baselines across 6 model families with fixed hyperparameters
+- FLAML searches hundreds of XGBoost/LightGBM/RF configurations within a time budget (300s default), using the same time-based val set for fair comparison
+- FLAML found a better XGBoost config: **val MAE 2.4651 vs baseline 2.5457 (3.17% improvement)**
+
+**Hyperparameter tuning (Optuna) — skipped:**
+- FLAML's search already constitutes automated hyperparameter optimisation
+- The 3.17% gain over manually-tuned defaults signals the dataset is close to its performance ceiling for tree-based models on the current 12-feature set
+- Future gains are more likely from feature engineering (zone target encoding, multi-month training) than further hyperparameter search
+
+**Best model as of Jan 2023 baseline:**
+| | Value |
+|---|---|
+| Model | `flaml_xgboost` |
+| Val MAE | 2.4651 min |
+| Val R² | 0.8661 |
+| Saved to | `models/best_model.pkl` + `models/model_metadata.json` |
+
+---
+
+## 15. Open Decisions (To Be Resolved)
 
 | # | Decision | Options | Blocking? | Status |
 |---|---|---|---|---|
 | 1 | Geographic scope | Manhattan only vs all boroughs vs borough-as-feature | Before model training | **Resolved** — all boroughs retained, borough encoded |
-| 2 | Zone ID encoding | Raw integer vs target encoding vs borough lookup | Before model training | **Partially resolved** — raw integer + borough for baseline |
+| 2 | Zone ID encoding | Raw integer vs target encoding vs borough lookup | Before advanced modelling | **Partially resolved** — raw integer + borough for baseline; target encoding is the highest-priority feature enhancement |
 | 3 | Holiday flag | Add or skip | Low priority | Open |
 | 4 | Duration outlier threshold | Fixed 120 min vs percentile-based | Low priority | Open |
 | 5 | Multi-month training | Jan 2023 only vs full year | Before evaluation | Open |
