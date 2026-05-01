@@ -75,11 +75,7 @@ python -m src.train
 ```
 This trains 5 models (Dummy → Linear → Random Forest → XGBoost → LightGBM), logs all runs to MLflow, and saves the best model to `models/best_model.pkl`.
 
-View results:
-```bash
-mlflow ui
-# Open http://localhost:5000
-```
+View results in MLflow UI — see **MLflow Setup** section below.
 
 ### Step 4 — Serve the API
 ```bash
@@ -110,6 +106,63 @@ Checks for data drift and MAE degradation every 6 hours (configurable). Automati
 ```bash
 pytest tests/ -v
 ```
+
+---
+
+## MLflow Setup
+
+MLflow tracks every training run (params, metrics, model artifacts) in a local SQLite database.
+
+### First-time setup
+
+```bash
+cd nyc-taxi-duration-prediction-self-healing-ml
+
+# Initialise the SQLite backend (run once)
+mlflow db upgrade sqlite:///mlflow.db
+```
+
+### Launch the UI
+
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db --dev
+```
+
+Then open `http://127.0.0.1:5000` in your browser.
+
+> `--dev` disables MLflow 3.x security middleware for local single-user use.
+
+### Navigating the UI
+
+1. Click **nyc-taxi-duration** in the left sidebar (not "Default")
+2. All runs are listed — sortable by `val_mae`, `val_rmse`, `val_r2`
+3. Click any run to see its params, metrics, and saved model artifact
+4. Check multiple runs → click **Compare** to overlay metrics in charts
+
+### Tracking URI
+
+Configured in `configs/config.yaml`:
+
+```yaml
+mlflow:
+  experiment_name: nyc-taxi-duration
+  tracking_uri: mlflow.db      # resolves to sqlite:///mlflow.db at runtime
+```
+
+The notebook builds the full URI as:
+```python
+MLFLOW_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / cfg['mlflow']['tracking_uri']}"
+```
+
+### What gets logged per run
+
+| Logged item | Example |
+|---|---|
+| Params | `n_estimators=500`, `max_depth=8`, `target_transform=none` |
+| Val metrics | `val_mae`, `val_rmse`, `val_r2` |
+| Test metrics | `test_mae`, `test_rmse`, `test_r2` |
+| Best iteration | XGBoost / LightGBM early stopping round |
+| Model artifact | Serialised estimator loadable via `mlflow.<flavour>.load_model()` |
 
 ---
 

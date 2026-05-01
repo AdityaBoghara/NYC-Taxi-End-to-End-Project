@@ -81,7 +81,7 @@ training:
 
 mlflow:
   experiment_name: nyc-taxi-duration
-  tracking_uri: mlruns
+  tracking_uri: mlflow.db
 
 monitoring:
   mae_degradation_threshold_pct: 15.0   # retrain if MAE increases by > 15%
