@@ -1,23 +1,43 @@
-pandas>=2.0
-numpy>=1.24
-pyarrow>=12.0
-fastparquet
-scikit-learn>=1.3
-xgboost>=2.0
-lightgbm>=4.0
-matplotlib>=3.7
-seaborn>=0.12
-plotly>=5.15
-mlflow>=2.8
-fastapi>=0.104
-uvicorn[standard]>=0.24
-pydantic>=2.0
-shap>=0.43
-evidently>=0.4
-scipy>=1.11
+# Core data
+pandas>=2.3
+numpy>=2.0
+pyarrow>=23.0
+fastparquet>=2026.3
+
+# Machine learning
+scikit-learn>=1.8
+xgboost>=2.1
+lightgbm>=4.6
+flaml[automl]>=2.6       # AutoML search (Notebook 4 / Side Quest)
+
+# Visualization
+matplotlib>=3.10
+seaborn>=0.13
+plotly>=5.24
+
+# MLOps & experiment tracking
+mlflow>=3.11              # SQLite backend; --dev flag required for local UI
+
+# Model serving
+fastapi>=0.136
+uvicorn[standard]>=0.46
+pydantic>=2.13
+
+# Explainability & drift detection
+shap>=0.51
+evidently>=0.7
+scipy>=1.17
+
+# Scheduling & HTTP
 schedule>=1.2
-requests>=2.31
+requests>=2.32
+
+# Config
 pyyaml>=6.0
-ipykernel
-pytest>=7.4
-httpx>=0.25
+
+# Notebook support
+ipykernel>=7.2
+
+# Testing
+pytest>=9.0
+httpx>=0.28               # required by FastAPI TestClient
