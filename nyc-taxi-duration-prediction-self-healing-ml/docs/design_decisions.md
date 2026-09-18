@@ -279,6 +279,11 @@ The following columns are **excluded** from the model feature set because they a
 - Columnar format is efficient when only a subset of columns is read downstream
 - Separating raw/interim/processed makes each transformation stage independently inspectable and re-runnable
 
+**Known pipeline constraint — `pickup_datetime` in processed parquet:**
+- The processed parquet must include `pickup_datetime` as its first column even though it is not a model feature
+- It is required for the time-based train/val/test split in all downstream notebooks (3, 4, Side Quest)
+- If Notebook 2 is re-run from a stale kernel state, `pickup_datetime` can be dropped silently — downstream notebooks now raise a `ValueError` with a clear fix message rather than a `KeyError`
+
 ---
 
 ## 13. MLflow Backend
@@ -326,7 +331,46 @@ The following columns are **excluded** from the model feature set because they a
 
 ---
 
-## 15. Open Decisions (To Be Resolved)
+## 15. Model Explainability — SHAP TreeExplainer
+
+**Decision:** Use SHAP TreeExplainer (exact Shapley values) to validate the FLAML XGBoost model before moving to serving. Applied to a 5,000-row sample of the Jan 2023 test set (Jan 25–31).
+
+**Rationale:**
+- TreeExplainer computes exact (not approximate) Shapley values by traversing the XGBoost tree structure directly — the correct tool for any gradient-boosted tree model
+- Explainability is a pre-deployment gate: a model making good predictions for wrong reasons will fail silently under data shift, which is the exact scenario the self-healing system monitors for
+- 5,000-row sample is sufficient to capture the full feature distribution while keeping compute under 30 seconds
+
+**Analysis produced (Notebook 4):**
+
+| Analysis | What it shows |
+|---|---|
+| Global importance bar + beeswarm | Which features move predictions most, and in which direction |
+| Dependence plots (top 4 features) | How each feature's SHAP value changes as the feature value increases |
+| Waterfall plots (2 trips) | Full per-feature breakdown of one short city trip and one JFK airport trip |
+| Segment analysis | Mean SHAP contributions grouped by rate code, hour of day, and airport vs standard |
+
+**Validation results — all 6 checks passed:**
+
+| Signal | Expected | Result |
+|---|---|---|
+| `trip_distance` is #1 feature | Yes | Largest mean \|SHAP\| by wide margin |
+| `hour` captures rush-hour congestion | Yes | SHAP peaks at 8–9 AM and 17–19 PM |
+| `RatecodeID=2` (JFK) adds large positive SHAP | Yes | JFK mean SHAP >> standard rate SHAP |
+| `is_airport_trip` contributes positively | Yes | Meaningful positive effect |
+| `passenger_count` near zero | Yes | Near-zero mean \|SHAP\| — low-signal feature |
+| Zone IDs (`PULocationID`, `DOLocationID`) contribute | Yes | Fine-grained spatial signal confirmed |
+
+**Key takeaway:** The model is learning the right signals for the right reasons — not spurious correlations. This matters directly for the self-healing system: if the model degrades under drift, it is because real-world patterns changed, not because it was relying on a proxy feature that disappeared.
+
+**Output:** 10 plot files saved to `reports/shap_*.png`. Automated pass/fail checklist printed at end of Notebook 4.
+
+**Trade-offs:**
+- SHAP is computed on the Jan 2023 test-set sample only — distributions may shift for future months
+- `passenger_count` confirmed low-signal; could be dropped without meaningful accuracy loss (kept for now to avoid breaking the API contract)
+
+---
+
+## 16. Open Decisions (To Be Resolved)
 
 | # | Decision | Options | Blocking? | Status |
 |---|---|---|---|---|
