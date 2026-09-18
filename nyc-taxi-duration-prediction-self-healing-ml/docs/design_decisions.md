@@ -4,7 +4,7 @@ NYC Taxi Trip Duration Prediction — Self-Healing ML System
 
 Single source of truth for project decisions, implementation status, rationale, and open follow-ups. Consolidated on 2026-09-18 from the original design record, notebook code, configuration, and saved model metadata. This records existing choices; it does not approve new implementation proposals. Original decision dates were not consistently recorded.
 
-Use sections 1–6 for the decision register, section 7 for open choices, section 8 for documentation discrepancies, and [Detailed rationale](#detailed-rationale) for supporting analysis. D01–D47 are the stable decision identifiers.
+Use sections 1–6 for the original decision register, section 7 for open choices, section 8 for documentation discrepancies, section 9 for the implemented pre-trip revision, and [Detailed rationale](#detailed-rationale) for supporting analysis. D01–D52 are the stable decision identifiers. Section 9 supersedes the original input assumptions where stated.
 
 ## Status and evidence
 
@@ -15,6 +15,7 @@ Use sections 1–6 for the decision register, section 7 for open choices, sectio
 Sources:
 
 - [Project overview and intended architecture](../README.md)
+- [Pre-trip training and prediction](../src/pretrip.py) and [executed experiment](../output/jupyter-notebook/pretrip-eta-baseline.ipynb)
 - [Configuration](../configs/config.yaml) and [configuration loader](../src/config.py)
 - [Data loading notebook](../notebooks/1.%20load_validate_raw_data.ipynb)
 - [EDA and feature engineering notebook](../notebooks/2.%20eda_feature_engineering.ipynb)
@@ -62,10 +63,10 @@ These are baseline modeling rules, not proof that every excluded record is inval
 | D19 | Build one borough map from sorted observed pickup-borough names and apply it to both pickup and dropoff. | Keeps the two columns on the same mapping within a run. A stable persisted mapping for serving and future data is still needed. | Implemented |
 | D20 | Derive `hour`, `dayofweek`, `is_weekend`, and `is_rush_hour`. | Monday is 0; weekend is day 5 or 6; rush hours are `{7,8,9,17,18,19}`. Hour/day remain integer values, without sine/cosine encoding. | Implemented |
 | D21 | Set `is_airport_trip` when either joined service-zone value equals `Airports`. | Adds a direct trip-type signal. Actual airport coverage depends on the lookup table; the code does not independently enumerate all airport zone IDs. | Implemented |
-| D22 | Retain integer `RatecodeID` as a trip-type feature; discard the EDA helper `rate_label`. | Project documentation treats rate code as available at dispatch. Production input availability must follow the eventual serving contract. | Implemented |
+| D22 | Retain integer `RatecodeID` in the historical model; discard the EDA helper `rate_label`. | The earlier dispatch-availability assumption was incorrect: TLC defines the recorded field as the final rate code. D48 excludes it from the pre-trip model. | Historical only; superseded for pre-trip |
 | D23 | Retain passenger count despite low observed importance. | Preserves the current feature schema. Also retain correlated flags such as weekend/day-of-week and airport/rate-code. | Implemented |
 | D24 | Exclude financial columns, payment type, vendor ID, transmission flag, dropoff timestamp, and duration-in-seconds from predictors. | Financial/payment/dropoff values are post-trip; vendor and transmission fields were judged unhelpful. Duration-in-seconds would directly reveal the target. | Implemented |
-| D25 | Use recorded `trip_distance` in the baseline. | It is a strong predictor, but the final metered distance is unavailable before a trip. A pre-trip route-distance estimate or a different product definition remains unresolved. | Implemented baseline; serving assumption open |
+| D25 | Use recorded `trip_distance` in the historical baseline. | Final metered distance is unavailable before departure. D48 removes it from the pre-trip model; route estimates remain a future experiment. | Historical only; superseded for pre-trip |
 | D26 | Allow notebook geographic fallback when the lookup is unavailable. | Notebook 2 assigns borough IDs `-1` and airport flag `0`; final assembly can omit unavailable geographic columns. This can change the schema and is not a finalized production fallback policy. | Implemented notebook behavior |
 
 Current saved feature order:
@@ -121,16 +122,16 @@ SHAP consistency checks support interpretation of the model; they do not prove c
 
 ## 6. Serving and self-healing architecture
 
-These choices are documented intentions. At consolidation time, `src/` contains only `config.py` and `__init__.py`; `tests/` contains only `__init__.py`.
+Serving and monitoring remain planned. The subsequent pre-trip revision implements training and local prediction in `src/pretrip.py`, with tests in `tests/test_pretrip.py`; see section 9.
 
 | ID | Decision | Reason and remaining work | Status |
 |---|---|---|---|
-| D42 | Organize reusable code into data loading, feature engineering, training, evaluation, prediction, monitoring, and API modules. | Separates pipeline responsibilities and enables execution outside notebooks. These modules still need implementation. | Planned |
+| D42 | Organize reusable code into data loading, feature engineering, training, evaluation, prediction, monitoring, and API modules. | Separates pipeline responsibilities and enables execution outside notebooks. These modules still need implementation. | Partially implemented in `src/pretrip.py`; full modular pipeline pending |
 | D43 | Serve predictions through FastAPI with `POST /predict`, `GET /health`, and `GET /model-info`. | Provides an inference interface and basic service/model inspection. Configured address is `0.0.0.0:8000`; API code is absent. | Planned |
 | D44 | Use Evidently for drift detection. | Compare incoming feature distributions with reference data. Reference windows, statistical settings, and logging still need implementation. | Planned |
 | D45 | Trigger retraining when MAE degrades by more than 15% or more than 30% of features drift. | Records the configured initial thresholds. Requires a defined performance baseline, actual-duration labels, and drift calculation. | Planned; thresholds configured |
 | D46 | Check monitoring conditions every 6 hours. | Establishes the configured default cadence. No scheduler/monitor loop is implemented. | Planned; interval configured |
-| D47 | Use pytest for automated tests. | The dependency and test command are documented, but no actual tests have been added. | Planned |
+| D47 | Use pytest for automated tests. | Seven pre-trip tests cover forbidden-input independence, derived features, validation, split boundaries, and saved prediction schema. | Implemented for pre-trip workflow |
 
 ## 7. Deferred choices and unresolved follow-ups
 
@@ -145,7 +146,7 @@ These are not finalized implementation decisions.
 | Outlier policy | Fixed 120-minute and 50-mile limits retained; percentile-based alternatives remain open. |
 | Flex Fare coverage | Separate segment modeling deferred pending usable metadata. |
 | Geographic lookup | Local caching, stable persisted encoding, unknown-zone handling, and production fallback need a final contract. |
-| Distance available at prediction time | Decide how a pre-trip distance estimate is obtained and evaluate the model with that input. |
+| Distance available at prediction time | Resolved for the initial pre-trip model: omit distance. Estimated routing distance is a deferred enhancement, not a dependency. |
 | Removing passenger count | Low signal documented; retained in the current schema. |
 | Shared MLflow backend | PostgreSQL is mentioned for future concurrent use; local SQLite remains the current choice. |
 | Production model replacement | Promotion criteria, versioning, rollback, and safe reload are unresolved; notebook artifact replacement is the only implemented selection mechanism. |
@@ -161,9 +162,40 @@ These are not finalized implementation decisions.
 
 When a choice changes, record its new status, rationale, and implementation evidence here rather than silently treating a proposal as completed work.
 
+## 9. Pre-trip model revision — 2026-09-18
+
+The accepted first implementation predicts zone-to-zone trip duration using only inputs known before departure. It retains XGBoost and does not require a routing service or live traffic.
+
+| ID | Decision | Reason and limitations | Status |
+|---|---|---|---|
+| D48 | Require only `PULocationID`, `DOLocationID`, and `pickup_datetime`; exclude actual distance, final rate code, and passenger count. | Prevents dependence on post-trip fields and keeps the request simple. Passenger count is omitted for simplicity, not because it is inherently post-trip. | Implemented |
+| D49 | Derive nine geographic/time features through one function shared by training and prediction; save geography and rush-hour settings with the estimator. | Avoids callers engineering features and keeps encoding consistent at inference. Known TLC zones and timezone-naive NYC local time are required. | Implemented |
+| D50 | Train a separate XGBoost candidate using existing baseline hyperparameters, seed 42, and validation-based early stopping. | Establishes an initial pre-trip baseline without additional AutoML search. Save to `pretrip_model.pkl`; preserve the retrospective artifact. | Implemented |
+| D51 | Evaluate against a mean predictor and re-score the saved retrospective model on the current validation/test rows. | Uses the original timestamp split rule. The retrospective comparison uses different features/tuning and is not a controlled ablation. Record a processed-data SHA-256 fingerprint for future provenance. | Implemented |
+| D52 | Keep the existing processed cohort for this first experiment. | Avoids simultaneously changing feature availability and sample selection. Existing distance, duration, and metadata filters still limit the population represented. Broader coverage and later-month evaluation remain open. | Implemented |
+
+The [TLC data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf) describes `trip_distance` as elapsed taximeter distance and `RatecodeID` as the final rate code at trip end. This supersedes earlier claims in this document that the recorded rate code is guaranteed available at dispatch.
+
+### Results from the executed experiment
+
+Training: 1,529,266 rows; validation: 684,997; test: 678,572. Exact boundaries are January 17 and January 24 at 23:59:59. The model used all 500 configured boosting rounds (best iteration 499).
+
+| Model | Validation MAE (minutes) | Test MAE (minutes) |
+|---|---|---|
+| Pre-trip XGBoost | 3.8569 | 3.9594 |
+| Mean predictor | 7.7457 | 7.7336 |
+| Saved retrospective model, re-evaluated | 3.4852 | 3.5904 |
+| Historical FLAML metadata, not reproduced | 2.4651 | 2.5740 |
+
+The pre-trip model reduces test MAE by approximately 48.8% relative to the mean predictor. The historical metadata scores do not reproduce on the current file; the cause has not been established. Do not compare the new score only against 2.5740 or claim that the historical training dataset is identical to the current one.
+
+Artifacts: `models/pretrip_model.pkl`, `models/pretrip_metadata.json`, and `reports/pretrip_comparison.json`. These are git-ignored local outputs. The executed experiment notebook retains the results in versionable form. This workflow saves JSON results rather than adding MLflow runs. It does not change the planned API's configuration to point at the new bundle; serving still needs implementation.
+
+Validation: seven pytest tests passed; all experiment code cells were executed sequentially in a fresh Python process and their outputs saved. The notebook was also structurally validated. Existing SHAP results apply only to the historical model, and need to be repeated for this one.
+
 ## Detailed rationale
 
-The following sections retain the original numbered rationale and EDA observations. Dataset-specific counts and interpretations reflect the original January analysis, not a new validation run. Filtering thresholds are modeling heuristics; they do not prove that all excluded trips are invalid. Current implementation status and qualifications are recorded in D01–D47 above. Open decisions are maintained only in section 7.
+The following sections retain the original numbered rationale and EDA observations. Dataset-specific counts and interpretations reflect the original January analysis, not a new validation run. Filtering thresholds are modeling heuristics; they do not prove that all excluded trips are invalid. Current implementation status and qualifications are recorded in D01–D52 above. Open decisions are maintained only in section 7.
 
 ### 1. Data Source
 
@@ -424,7 +456,7 @@ The following columns are **excluded** from the model feature set because they a
 **Decision:** Retain `RatecodeID` as a model feature (cast to integer).
 
 **Rationale (from EDA):**
-- RatecodeID encodes the trip type selected at dispatch — it is a known-at-pickup value
+- The original model treated rate code as a trip-type signal. The recorded TLC field is the final rate code, so section 9 excludes it from pre-trip inputs.
 - JFK flat-rate trips (code 2) have a median duration ~3–4× higher than standard metered trips (code 1)
 - Newark (code 3) and Nassau/Westchester (code 4) also represent structurally longer trips
 - The feature adds direct signal that is not fully captured by location IDs alone

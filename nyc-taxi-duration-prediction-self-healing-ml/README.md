@@ -1,6 +1,8 @@
 # NYC Taxi Trip Duration Prediction — Self-Healing ML System
 
-An end-to-end machine learning system that predicts NYC yellow taxi trip duration in minutes, with automated drift detection and self-healing retraining.
+A machine learning project that predicts NYC yellow taxi trip duration in minutes. A pre-trip training and local prediction workflow is implemented; FastAPI serving, drift detection, and self-healing retraining are planned.
+
+The pre-trip model requires only pickup zone, destination zone, and NYC local departure time. The original 12-feature notebook model remains a retrospective benchmark because it uses actual trip distance and final rate code.
 
 ## Project Overview
 
@@ -10,12 +12,14 @@ An end-to-end machine learning system that predicts NYC yellow taxi trip duratio
 | **Target** | `trip_duration_min` — elapsed time from pickup to dropoff |
 | **Models** | XGBoost / LightGBM (best chosen by validation MAE) |
 | **Tracking** | MLflow experiment tracking for every run |
-| **Serving** | FastAPI REST API (`POST /predict`) |
-| **Monitoring** | Evidently drift detection + automatic retraining trigger |
+| **Serving** | Local Python prediction implemented; FastAPI planned |
+| **Monitoring** | Planned: Evidently drift detection + retraining trigger |
 
 ---
 
 ## Project Structure
+
+This combines implemented files with the intended module layout. Currently, the reusable modules are `config.py` and `pretrip.py`; the other listed Python modules are planned.
 
 ```
 nyc-taxi-duration-prediction-self-healing-ml/
@@ -26,7 +30,10 @@ nyc-taxi-duration-prediction-self-healing-ml/
 ├── notebooks/
 │   ├── 1. load_validate_raw_data.ipynb
 │   └── 2. eda_feature_engineering.ipynb
+├── output/jupyter-notebook/
+│   └── pretrip-eta-baseline.ipynb # Executed pre-trip experiment
 ├── src/
+│   ├── pretrip.py              # Implemented training + local prediction
 │   ├── config.py               # Load configs/config.yaml
 │   ├── data_loader.py          # Load/download parquet data
 │   ├── feature_engineering.py  # Filters + feature derivation
@@ -69,43 +76,54 @@ Open and run `notebooks/1. load_validate_raw_data.ipynb`
 ### Step 2 — EDA & Feature Engineering
 Open and run `notebooks/2. eda_feature_engineering.ipynb`
 
-### Step 3 — Train Models
-```bash
-python -m src.train
-```
-This trains 5 models (Dummy → Linear → Random Forest → XGBoost → LightGBM), logs all runs to MLflow, and saves the best model to `models/best_model.pkl`.
+### Step 3 — Train the pre-trip model
 
-View results in MLflow UI — see **MLflow Setup** section below.
-
-### Step 4 — Serve the API
 ```bash
-uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+python -m src.pretrip
 ```
 
-Predict:
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "PULocationID": 161, "DOLocationID": 141,
-    "trip_distance": 2.5, "passenger_count": 1,
-    "RatecodeID": 1, "hour": 8, "dayofweek": 1,
-    "is_weekend": 0, "is_rush_hour": 1,
-    "PU_borough_id": 3, "DO_borough_id": 3,
-    "is_airport_trip": 0
-  }'
+This trains XGBoost on the existing processed dataset, using nine features derived from pickup zone, destination zone, and departure time. The final seven days are test data; the preceding seven are validation data. Validation controls early stopping. A mean predictor and the saved retrospective model (when present) are evaluated on the same rows.
+
+Outputs:
+
+- `models/pretrip_model.pkl`: estimator plus the geographic mapping and feature settings used at training time.
+- `models/pretrip_metadata.json`: metrics, input contract, exact split boundaries, data fingerprint, and limitations.
+- `reports/pretrip_comparison.json`: evaluation report.
+
+The existing `models/best_model.pkl` remains the historical model. The pre-trip experiment does not write new MLflow runs; its results are recorded in the JSON artifacts and notebook. Historical notebook runs remain available in MLflow.
+
+For the executed experiment and comparison, open [Pre-trip ETA baseline](output/jupyter-notebook/pretrip-eta-baseline.ipynb). Its training cell reruns the experiment.
+
+### Step 4 — Predict locally
+
+```python
+import pandas as pd
+from src.pretrip import predict
+
+trips = pd.DataFrame([{
+    "PULocationID": 161,
+    "DOLocationID": 141,
+    "pickup_datetime": "2023-01-25 08:00:00",
+}])
+print(predict(trips))  # Predicted duration in minutes
 ```
 
-### Step 5 — Monitor for Drift
-```bash
-python -m src.monitor
-```
-Checks for data drift and MAE degradation every 6 hours (configurable). Automatically triggers retraining if thresholds are exceeded.
+Use timezone-naive **America/New_York local time**. Unknown zone IDs and missing inputs are rejected. Time, borough, and airport features are generated internally; no actual distance or final rate code is required. These are zone-level estimates, without live traffic or exact-address routing.
 
-### Step 6 — Run Tests
+### Step 5 — Run tests
+
 ```bash
-pytest tests/ -v
+python -m pytest tests/ -v
 ```
+
+### Planned next stages
+
+- Validate on later months and repeat explainability for the pre-trip model.
+- Expand reusable data preparation beyond the current notebooks.
+- Build the FastAPI endpoints described below.
+- Implement drift detection, evaluation-gated retraining, and model promotion.
+
+The earlier `src.train`, `src.api`, and `src.monitor` commands are not available yet. The project structure above includes the intended architecture, not just implemented files.
 
 ---
 
@@ -172,15 +190,17 @@ See [docs/design_decisions.md](docs/design_decisions.md) for the complete decisi
 
 | Decision | Choice |
 |---|---|
-| Train/val split | Time-based (last 7 days = validation) |
+| Train/val/test split | Time-based: final 7 days test, preceding 7 days validation |
 | Primary metric | MAE (interpretable in minutes) |
-| Feature set | 12 features — time, location, trip type |
-| No leakage | All financial columns excluded (post-trip values) |
+| Feature set | Pre-trip: 9 derived features; historical benchmark: 12 |
+| Pre-trip input contract | Pickup zone, destination zone, local departure time |
 | Drift threshold | MAE +15% or >30% features drifted → retrain |
 
 ---
 
-## Feature Reference
+## Historical Model Feature Reference
+
+These 12 features describe the original retrospective model. The pre-trip model excludes `trip_distance`, `RatecodeID`, and `passenger_count`, and derives its remaining nine features internally.
 
 | Feature | Type | Description |
 |---|---|---|
@@ -199,7 +219,9 @@ See [docs/design_decisions.md](docs/design_decisions.md) for the complete decisi
 
 ---
 
-## API Endpoints
+## Planned API Endpoints
+
+These endpoints are not implemented yet.
 
 | Method | Path | Description |
 |---|---|---|

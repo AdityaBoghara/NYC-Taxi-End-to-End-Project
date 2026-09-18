@@ -43,7 +43,7 @@ features:
   rush_hours: [7, 8, 9, 17, 18, 19]
 
 training:
-  val_days: 7                      # last N days of month held out for validation
+  val_days: 7                      # final N days = test; preceding N days = validation
   random_state: 42
   log_transform_target: true       # also train XGBoost on log1p(target) and compare
 
@@ -87,6 +87,12 @@ monitoring:
   mae_degradation_threshold_pct: 15.0   # retrain if MAE increases by > 15%
   feature_drift_threshold_pct: 30.0     # retrain if > 30% features show drift
   check_interval_hours: 6
+
+pretrip:
+  model_path: "models/pretrip_model.pkl"
+  metadata_path: "models/pretrip_metadata.json"
+  report_path: "reports/pretrip_comparison.json"
+  early_stopping_rounds: 50
 
 api:
   host: "0.0.0.0"
