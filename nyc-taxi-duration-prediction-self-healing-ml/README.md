@@ -168,7 +168,7 @@ MLFLOW_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / cfg['mlflow']['tracking_uri']}
 
 ## Key Design Decisions
 
-See [docs/design_decisions.md](docs/design_decisions.md) for full rationale.
+See [docs/design_decisions.md](docs/design_decisions.md) for the complete decision register, implementation status, detailed rationale, and open questions.
 
 | Decision | Choice |
 |---|---|
