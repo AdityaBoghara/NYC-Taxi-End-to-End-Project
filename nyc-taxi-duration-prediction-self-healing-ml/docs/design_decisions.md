@@ -4,7 +4,7 @@ NYC Taxi Trip Duration Prediction — Self-Healing ML System
 
 Single source of truth for project decisions, implementation status, rationale, and open follow-ups. Consolidated on 2026-09-18 from the original design record, notebook code, configuration, and saved model metadata. This records existing choices; it does not approve new implementation proposals. Original decision dates were not consistently recorded.
 
-Use sections 1–6 for the original decision register, section 7 for open choices, section 8 for documentation discrepancies, section 9 for the implemented pre-trip revision, and [Detailed rationale](#detailed-rationale) for supporting analysis. D01–D52 are the stable decision identifiers. Section 9 supersedes the original input assumptions where stated.
+Use sections 1–6 for the original decision register, section 7 for open choices, section 8 for documentation discrepancies, sections 9–10 for the implemented pre-trip revision and evaluation safeguards, and [Detailed rationale](#detailed-rationale) for supporting analysis. D01–D58 are the stable decision identifiers. Section 9 supersedes the original input assumptions where stated.
 
 ## Status and evidence
 
@@ -193,9 +193,24 @@ Artifacts: `models/pretrip_model.pkl`, `models/pretrip_metadata.json`, and `repo
 
 Validation: seven pytest tests passed; all experiment code cells were executed sequentially in a fresh Python process and their outputs saved. The notebook was also structurally validated. Existing SHAP results apply only to the historical model, and need to be repeated for this one.
 
+## 10. Evaluation and promotion safeguards — 2026-09-18
+
+The recommended entry point is now `python -m src.validation`. Section 9 remains the historical first pre-trip experiment; these decisions supersede its processed-cohort and fixed-artifact workflow for new runs.
+
+| ID | Decision | Reason and limitations | Status |
+|---|---|---|---|
+| D53 | Prepare a versioned pre-trip cohort directly from raw monthly TLC data. | No distance, passenger, payment, or rate-code filters. Validate timestamps, geographic zones, and 1–120 minute labels; record attrition. Include EWR as an airport and exclude unknown-location placeholders. Duration truncation remains an explicit scope limitation. | Implemented |
+| D54 | Train on January, use its final seven days for early stopping, evaluate February diagnostically, gate on April, and report July/October holdouts. | Test across seasons without selecting models on holdout outcomes. Seeded caps of 300,000 training and 100,000 evaluation rows limit local compute. This does not establish present-day accuracy or cover every month. | Implemented and executed |
+| D55 | Compare against training-only hierarchical median predictions. | Route + weekday + four-hour period falls back to route, then pickup zone, then global median; each non-global estimate requires 30 training observations. Global median is also reported separately. | Implemented |
+| D56 | Quarantine unreproduced historical scores and record complete provenance for new runs. | Audit confirms changed cohort size and matching feature order, but cannot fully reconstruct the old dataset/encoding. New artifacts record raw/code/model/lookup hashes, dependency versions, configuration, and sampled training IDs. | Implemented; original score cause only partly established |
+| D57 | Require an independent labeled promotion gate; drift alone never replaces a model. | Initial configurable policy: more than 2% overall MAE improvement; no segment over 5% regression; at least 1,000 paired labels and 100 rows per required segment. Sparse or absent required segments block approval. Gate reports evidence and a recommendation; no service pointer is changed. | Implemented; current candidate blocked |
+| D58 | Separate prediction and outcome ledgers and join only available outcomes by stable source-row IDs. | Replay assumes labels become available at the first day three months after pickup-month start. January model readiness is April 1, making February an offline diagnostic only. April labels can inform promotion on July 1; July/October remain holdouts. This schedule is simulated, not actual release history. | Implemented and tested |
+
+Results and the outstanding sparse-segment and provenance limitations are recorded in [validation_results.md](validation_results.md). Versioned model artifacts, ledgers, and detailed reports live under `models/validation_runs/`; no active model is overwritten. The old `src.pretrip.train()` and notebook are retained only as historical reproduction paths.
+
 ## Detailed rationale
 
-The following sections retain the original numbered rationale and EDA observations. Dataset-specific counts and interpretations reflect the original January analysis, not a new validation run. Filtering thresholds are modeling heuristics; they do not prove that all excluded trips are invalid. Current implementation status and qualifications are recorded in D01–D52 above. Open decisions are maintained only in section 7.
+The following sections retain the original numbered rationale and EDA observations. Dataset-specific counts and interpretations reflect the original January analysis, not a new validation run. Filtering thresholds are modeling heuristics; they do not prove that all excluded trips are invalid. Current implementation status and qualifications are recorded in D01–D58 above. Open decisions are maintained only in section 7.
 
 ### 1. Data Source
 

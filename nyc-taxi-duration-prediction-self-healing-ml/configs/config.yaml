@@ -84,8 +84,8 @@ mlflow:
   tracking_uri: mlflow.db
 
 monitoring:
-  mae_degradation_threshold_pct: 15.0   # retrain if MAE increases by > 15%
-  feature_drift_threshold_pct: 30.0     # retrain if > 30% features show drift
+  mae_degradation_threshold_pct: 15.0   # investigate/train candidate; never auto-promote
+  feature_drift_threshold_pct: 30.0     # investigate/train candidate; never auto-promote
   check_interval_hours: 6
 
 pretrip:
@@ -93,6 +93,19 @@ pretrip:
   metadata_path: "models/pretrip_metadata.json"
   report_path: "reports/pretrip_comparison.json"
   early_stopping_rounds: 50
+
+validation:
+  train_month: "2023-01"
+  diagnostic_months: ["2023-02"]
+  promotion_month: "2023-04"
+  holdout_months: ["2023-07", "2023-10"]
+  max_train_rows: 300000
+  max_eval_rows: 100000
+  route_min_count: 30
+  min_labeled_rows: 1000
+  min_segment_rows: 100
+  min_improvement_pct: 2.0
+  max_segment_regression_pct: 5.0
 
 api:
   host: "0.0.0.0"

@@ -1,6 +1,6 @@
 # NYC Taxi Trip Duration Prediction — Self-Healing ML System
 
-A machine learning project that predicts NYC yellow taxi trip duration in minutes. A pre-trip training and local prediction workflow is implemented; FastAPI serving, drift detection, and self-healing retraining are planned.
+A machine learning project that predicts NYC yellow taxi trip duration in minutes. Raw-data preparation, pre-trip training, seasonal evaluation, promotion safeguards, and delayed-outcome replay are implemented. FastAPI serving, live drift detection, and automated retraining orchestration are planned.
 
 The pre-trip model requires only pickup zone, destination zone, and NYC local departure time. The original 12-feature notebook model remains a retrospective benchmark because it uses actual trip distance and final rate code.
 
@@ -19,7 +19,7 @@ The pre-trip model requires only pickup zone, destination zone, and NYC local de
 
 ## Project Structure
 
-This combines implemented files with the intended module layout. Currently, the reusable modules are `config.py` and `pretrip.py`; the other listed Python modules are planned.
+This combines implemented files with the intended module layout. Reusable modules now include `config.py`, `pretrip.py`, `data_pipeline.py`, `baselines.py`, `validation.py`, `promotion.py`, `replay.py`, and `audit_legacy.py`. FastAPI and a live monitoring service are still planned.
 
 ```
 nyc-taxi-duration-prediction-self-healing-ml/
@@ -68,7 +68,55 @@ python -c "import pandas, sklearn, xgboost, mlflow, fastapi; print('OK')"
 
 ---
 
-## Running the Pipeline
+## Validated pipeline (recommended)
+
+This workflow starts from raw data and does not require executing notebooks:
+
+```bash
+# Download the public monthly files once (existing files are reused).
+python -m src.data_pipeline 2023-01 2023-02 2023-04 2023-07 2023-10
+
+# Train, compare baselines, evaluate across seasons, and replay delayed outcomes.
+python -m src.validation
+
+# Investigate the original artifact/score mismatch independently.
+python -m src.audit_legacy
+
+python -m pytest tests/ -q
+```
+
+See [validation results and safeguards](docs/validation_results.md) for scope, metrics, the blocked promotion decision, and remaining work.
+
+The `validation` section in `configs/config.yaml` declares the evaluation months, sampling limits, and promotion thresholds. Each run writes an immutable directory under `models/validation_runs/`, including model bundles, data/code hashes, exact training row IDs, prediction/outcome ledgers, and a report. `reports/validation_latest.json` points to the last completed report; it is **not** an active model pointer.
+
+January supplies training and early-stopping data. February is an offline diagnostic; April is the independent promotion gate; July and October are holdouts. Samples are capped at 300,000 training rows and 100,000 rows per evaluation window. These results describe historical 2023 data, not current NYC accuracy.
+
+The `pretrip-v2` cohort does not filter on distance, passenger count, payment type, or rate code. It requires valid local timestamps, known geographic zones, and completed durations of 1–120 minutes. It includes EWR in the airport feature and excludes unknown-location placeholders.
+
+No run automatically replaces a served model. Drift requests investigation or candidate training; promotion requires labeled improvement and sufficient segment evidence. Replay delays labels using an explicit simulated release schedule, not verified historical publication dates.
+
+To predict with a particular completed run:
+
+```python
+import json
+from pathlib import Path
+import pandas as pd
+from src.pretrip import predict
+
+pointer = json.loads(Path("reports/validation_latest.json").read_text())
+run_directory = Path(pointer["report"]).parent
+inputs = pd.DataFrame([{
+    "PULocationID": 161, "DOLocationID": 141,
+    "pickup_datetime": "2023-07-10 08:00:00",
+}])
+print(predict(inputs, model_path=run_directory / "candidate.pkl"))
+```
+
+This is an explicit candidate prediction for inspection, not automatic deployment approval.
+
+## Original notebook experiment (historical)
+
+The steps below reproduce the earlier notebook-dependent experiment and its separate `pretrip_model.pkl` artifact. Use the validated pipeline above for new work.
 
 ### Step 1 — Download & Validate Data
 Open and run `notebooks/1. load_validate_raw_data.ipynb`
@@ -194,7 +242,7 @@ See [docs/design_decisions.md](docs/design_decisions.md) for the complete decisi
 | Primary metric | MAE (interpretable in minutes) |
 | Feature set | Pre-trip: 9 derived features; historical benchmark: 12 |
 | Pre-trip input contract | Pickup zone, destination zone, local departure time |
-| Drift threshold | MAE +15% or >30% features drifted → retrain |
+| Drift response | Investigate/train a candidate; promotion requires an independent labeled gate |
 
 ---
 
