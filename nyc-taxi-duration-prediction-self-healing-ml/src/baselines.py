@@ -30,8 +30,10 @@ class RouteMedian:
         frame["period"] = frame["hour"] // 4
         result = np.full(len(frame), np.nan)
         for keys, table in self.levels:
-            index = (pd.Index(frame[keys[0]]) if len(keys) == 1
-                     else pd.MultiIndex.from_frame(frame[keys]))
+            if len(keys) == 1:
+                index = pd.Index(frame[keys[0]])
+            else:
+                index = pd.MultiIndex.from_frame(frame[keys])
             values = table.reindex(index).to_numpy()
             result = np.where(np.isnan(result), values, result)
         return np.where(np.isnan(result), self.global_median, result)

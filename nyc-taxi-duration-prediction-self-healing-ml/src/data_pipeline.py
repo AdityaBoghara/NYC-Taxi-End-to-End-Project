@@ -32,7 +32,10 @@ def month_path(month: str) -> Path:
 
 def download(month: str) -> Path:
     path = month_path(month)
+    import pyarrow.parquet as pq
+
     if path.exists():
+        pq.ParquetFile(path)
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".parquet.part")
@@ -43,7 +46,6 @@ def download(month: str) -> Path:
             for chunk in response.iter_content(1024 * 1024):
                 stream.write(chunk)
     # Validate before exposing a completed download.
-    import pyarrow.parquet as pq
     pq.ParquetFile(temporary)
     os.replace(temporary, path)
     return path
@@ -58,8 +60,9 @@ def clean(raw: pd.DataFrame, month: str, known_zones: set[int]) -> tuple[pd.Data
     renamed = raw.rename(columns={"tpep_pickup_datetime": "pickup_datetime",
                                   "tpep_dropoff_datetime": "dropoff_datetime"})
     required = ["pickup_datetime", "dropoff_datetime", "PULocationID", "DOLocationID"]
-    if not set(required) <= set(renamed.columns):
-        raise ValueError(f"Missing raw columns: {sorted(set(required) - set(renamed.columns))}")
+    missing = sorted(set(required) - set(renamed.columns))
+    if missing:
+        raise ValueError(f"Missing raw columns: {missing}")
     rows = renamed[required].copy()
     # Stable within the exact raw file; not a real-world trip identifier.
     rows["source_row"] = np.arange(len(rows), dtype=np.int64)

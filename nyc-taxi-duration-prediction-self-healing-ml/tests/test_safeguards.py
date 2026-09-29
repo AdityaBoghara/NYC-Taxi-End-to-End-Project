@@ -1,11 +1,23 @@
 import numpy as np
 import pandas as pd
 import pytest
+import pyarrow as pa
 
+from src import data_pipeline
 from src.baselines import RouteMedian
 from src.data_pipeline import clean
 from src.promotion import monitor_action, promotion_gate
 from src.replay import join_available_outcomes, simulated_release
+
+
+def test_download_validates_cached_parquet(tmp_path, monkeypatch):
+    path = tmp_path / "rides_2023-01.parquet"
+    monkeypatch.setattr(data_pipeline, "month_path", lambda month: path)
+    pd.DataFrame({"trip": [1]}).to_parquet(path)
+    assert data_pipeline.download("2023-01") == path
+    path.write_bytes(b"damaged")
+    with pytest.raises(pa.ArrowInvalid):
+        data_pipeline.download("2023-01")
 
 
 def test_new_cohort_ignores_irrelevant_metadata_and_includes_month_start():

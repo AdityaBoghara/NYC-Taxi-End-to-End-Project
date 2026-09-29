@@ -13,8 +13,8 @@ from src.pretrip import metrics, split_by_time
 
 def audit() -> dict:
     path = processed_path(2023, 1)
-    model_path = ROOT / CFG["api"]["model_path"]
-    metadata_path = ROOT / CFG["api"]["metadata_path"]
+    model_path = ROOT / CFG["legacy_model"]["model_path"]
+    metadata_path = ROOT / CFG["legacy_model"]["metadata_path"]
     meta = json.loads(metadata_path.read_text())
     with model_path.open("rb") as stream:
         model = pickle.load(stream)

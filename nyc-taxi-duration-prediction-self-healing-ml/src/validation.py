@@ -43,14 +43,15 @@ def segment_labels(X, geography):
 
 
 def summarize(y, predictions, segments):
+    actual = np.asarray(y)
     result = {**metrics(y, predictions), "rows": len(y),
-              "p90_absolute_error": float(np.quantile(np.abs(np.asarray(y) - predictions), .9))}
+              "p90_absolute_error": float(np.quantile(np.abs(actual - predictions), .9))}
     result["segments"] = {}
     for column in segments:
         for value in sorted(segments[column].unique()):
             mask = segments[column].eq(value).to_numpy()
             result["segments"][f"{column}={value}"] = {
-                "rows": int(mask.sum()), "mae": float(np.abs(np.asarray(y)[mask] - predictions[mask]).mean())}
+                "rows": int(mask.sum()), "mae": float(np.abs(actual[mask] - predictions[mask]).mean())}
     return result
 
 
@@ -130,7 +131,12 @@ def run() -> dict:
         global_prediction = dummy.predict(X)
         scores = {name: summarize(rows[TARGET], values, segments)
                   for name, values in [("candidate", forecast), ("route_median", route_prediction), ("global_median", global_prediction)]}
-        role = "diagnostic" if month in cfg["diagnostic_months"] else "promotion_gate" if month == cfg["promotion_month"] else "holdout"
+        if month in cfg["diagnostic_months"]:
+            role = "diagnostic"
+        elif month == cfg["promotion_month"]:
+            role = "promotion_gate"
+        else:
+            role = "holdout"
         entry = {"role": role, "metrics": scores}
         release = simulated_release(month)
         # February is an offline diagnostic: January labels were unavailable then.
@@ -151,7 +157,8 @@ def run() -> dict:
                                      "completed_at": rows.dropoff_datetime, "available_at": release})
             before = join_available_outcomes(predictions, outcomes, release - pd.Timedelta(seconds=1))
             after = join_available_outcomes(predictions, outcomes, release)
-            assert len(before) == 0 and len(after) == len(rows)
+            if len(before) != 0 or len(after) != len(rows):
+                raise ValueError("Replay availability does not match the release schedule.")
             predictions.to_parquet(output / f"{month}_predictions.parquet", index=False)
             outcomes.to_parquet(output / f"{month}_outcomes.parquet", index=False)
             entry["replay"] = {"outcomes_before_release": len(before), "outcomes_after_release": len(after),

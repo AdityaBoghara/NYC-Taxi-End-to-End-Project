@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from sklearn.dummy import DummyRegressor
 
+from src.config import CFG, METADATA_PATH, MODEL_PATH, ROOT
 from src.pretrip import FEATURES, build_features, predict, split_by_time
 
 
@@ -76,3 +77,12 @@ def test_saved_prediction_uses_bundled_mapping(tmp_path, trip_inputs, geography)
     path.write_bytes(pickle.dumps(bundle))
     with pytest.raises(ValueError, match="schema"):
         predict(trip_inputs, path)
+
+
+def test_api_selects_pretrip_model_without_repointing_historical_artifacts():
+    assert MODEL_PATH == ROOT / CFG["pretrip"]["model_path"]
+    assert METADATA_PATH == ROOT / CFG["pretrip"]["metadata_path"]
+    assert CFG["legacy_model"] == {
+        "model_path": "models/best_model.pkl",
+        "metadata_path": "models/model_metadata.json",
+    }

@@ -34,10 +34,11 @@ def load_geography(path: Path = ZONE_LOOKUP_PATH) -> dict:
         raise ValueError("Zone lookup must contain unique LocationID values.")
     borough_names = sorted(zones["Borough"].fillna("Unknown").unique())
     borough_codes = {name: i for i, name in enumerate(borough_names)}
+    unknown_code = borough_codes.get("Unknown", -1)
     return {
         "borough_names": borough_names,
         "borough_by_zone": {
-            int(row.LocationID): borough_codes.get(row.Borough, borough_codes.get("Unknown", -1))
+            int(row.LocationID): borough_codes.get(row.Borough, unknown_code)
             for row in zones.itertuples()
         },
         # Matches the historical experiment's service-zone rule.
@@ -136,7 +137,7 @@ def train() -> dict:
             split: metrics(y.loc[masks[split]], estimator.predict(X.loc[masks[split]]))
             for split in ("val", "test")
         }
-    baseline_path = ROOT / CFG["api"]["metadata_path"]
+    baseline_path = ROOT / CFG["legacy_model"]["metadata_path"]
     historical = json.loads(baseline_path.read_text()) if baseline_path.exists() else None
     historical_comparison = None
     if historical:
@@ -146,7 +147,7 @@ def train() -> dict:
             "source": str(baseline_path.relative_to(ROOT)),
             "note": "Previously recorded retrospective scores, not rerun. Uses actual distance and final rate code; not a deployable pre-trip comparator or controlled feature ablation.",
         }
-        legacy_path = ROOT / CFG["api"]["model_path"]
+        legacy_path = ROOT / CFG["legacy_model"]["model_path"]
         if legacy_path.exists():
             with legacy_path.open("rb") as stream:
                 legacy_model = pickle.load(stream)
@@ -180,14 +181,14 @@ def train() -> dict:
         ],
     }
     bundle = {"model": model, "features": FEATURES, "geography": geography, "rush_hours": rush_hours}
-    for key, value in [("model_path", bundle), ("metadata_path", report), ("report_path", report)]:
+    model_path = ROOT / CFG["pretrip"]["model_path"]
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    with model_path.open("wb") as stream:
+        pickle.dump(bundle, stream)
+    for key in ("metadata_path", "report_path"):
         destination = ROOT / CFG["pretrip"][key]
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if key == "model_path":
-            with destination.open("wb") as stream:
-                pickle.dump(value, stream)
-        else:
-            destination.write_text(json.dumps(value, indent=2) + "\n")
+        destination.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(results, indent=2), flush=True)
     return report
 
