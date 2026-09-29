@@ -19,7 +19,7 @@ The pre-trip model requires only pickup zone, destination zone, and NYC local de
 
 ## Project Structure
 
-This combines implemented files with the intended module layout. Reusable modules now include `config.py`, `pretrip.py`, `data_pipeline.py`, `baselines.py`, `validation.py`, `promotion.py`, `replay.py`, and `audit_legacy.py`. FastAPI and a live monitoring service are still planned.
+Reusable pipeline code lives in `src/`, tests in `tests/`, experiments in `notebooks/`, and configuration in `configs/`. Model files, reports, and tracking state are generated locally. FastAPI and a live monitoring service are still planned.
 
 ```
 nyc-taxi-duration-prediction-self-healing-ml/
@@ -29,26 +29,26 @@ nyc-taxi-duration-prediction-self-healing-ml/
 │   └── processed/      # Model-ready (12 features + target)
 ├── notebooks/
 │   ├── 1. load_validate_raw_data.ipynb
-│   └── 2. eda_feature_engineering.ipynb
-├── output/jupyter-notebook/
+│   ├── 2. eda_feature_engineering.ipynb
 │   └── pretrip-eta-baseline.ipynb # Executed pre-trip experiment
 ├── src/
-│   ├── pretrip.py              # Implemented training + local prediction
 │   ├── config.py               # Load configs/config.yaml
-│   ├── data_loader.py          # Load/download parquet data
-│   ├── feature_engineering.py  # Filters + feature derivation
-│   ├── train.py                # Training pipeline + MLflow
-│   ├── evaluate.py             # Metrics + SHAP analysis
-│   ├── predict.py              # Load model + predict
-│   ├── monitor.py              # Drift detection + auto-retrain
-│   └── api.py                  # FastAPI app
+│   ├── data_pipeline.py        # Download and clean raw data
+│   ├── pretrip.py              # Feature building and local prediction
+│   ├── baselines.py            # Route-median baseline
+│   ├── validation.py           # Training and seasonal evaluation
+│   ├── promotion.py            # Promotion decision rules
+│   ├── replay.py               # Delayed-outcome joins
+│   └── audit_legacy.py         # Historical audit; move to tools/ later
 ├── tests/
 ├── configs/
 │   └── config.yaml             # All constants and thresholds
 ├── models/                     # Saved model artifacts (git-ignored)
+├── reports/                    # Generated evaluation and plots (git-ignored)
 ├── logs/                       # Drift logs (git-ignored)
 ├── docs/
-│   └── design_decisions.md
+│   ├── design_decisions.md
+│   └── virtualEnv.md
 ├── environment.yml
 └── requirements.txt
 ```
@@ -132,6 +132,8 @@ python -m src.pretrip
 
 This trains XGBoost on the existing processed dataset, using nine features derived from pickup zone, destination zone, and departure time. The final seven days are test data; the preceding seven are validation data. Validation controls early stopping. A mean predictor and the saved retrospective model (when present) are evaluated on the same rows.
 
+This historical standalone workflow uses all zones in the lookup and flags only `service_zone == Airports` as an airport trip. The recommended `pretrip-v2` validation workflow excludes unknown-location placeholders and includes EWR in its airport flag.
+
 Outputs:
 
 - `models/pretrip_model.pkl`: estimator plus the geographic mapping and feature settings used at training time.
@@ -140,7 +142,7 @@ Outputs:
 
 The existing `models/best_model.pkl` remains the historical model. The pre-trip experiment does not write new MLflow runs; its results are recorded in the JSON artifacts and notebook. Historical notebook runs remain available in MLflow.
 
-For the executed experiment and comparison, open [Pre-trip ETA baseline](output/jupyter-notebook/pretrip-eta-baseline.ipynb). Its training cell reruns the experiment.
+For the executed experiment and comparison, open [Pre-trip ETA baseline](notebooks/pretrip-eta-baseline.ipynb). Its training cell reruns the experiment.
 
 ### Step 4 — Predict locally
 
@@ -185,13 +187,13 @@ MLflow tracks every training run (params, metrics, model artifacts) in a local S
 cd nyc-taxi-duration-prediction-self-healing-ml
 
 # Initialise the SQLite backend (run once)
-mlflow db upgrade sqlite:///mlflow.db
+mlflow db upgrade sqlite:///logs/mlflow.db
 ```
 
 ### Launch the UI
 
 ```bash
-mlflow ui --backend-store-uri sqlite:///mlflow.db --dev
+mlflow ui --backend-store-uri sqlite:///logs/mlflow.db --dev
 ```
 
 Then open `http://127.0.0.1:5000` in your browser.
@@ -212,7 +214,7 @@ Configured in `configs/config.yaml`:
 ```yaml
 mlflow:
   experiment_name: nyc-taxi-duration
-  tracking_uri: mlflow.db      # resolves to sqlite:///mlflow.db at runtime
+  tracking_uri: logs/mlflow.db # resolves to sqlite:///logs/mlflow.db at runtime
 ```
 
 The notebook builds the full URI as:
@@ -270,6 +272,7 @@ These 12 features describe the original retrospective model. The pre-trip model 
 ## Planned API Endpoints
 
 These endpoints are not implemented yet.
+The `api` configuration selects the local pre-trip bundle; `legacy_model` keeps the retrospective artifact separate. Selection alone does not promote a model for deployment.
 
 | Method | Path | Description |
 |---|---|---|
