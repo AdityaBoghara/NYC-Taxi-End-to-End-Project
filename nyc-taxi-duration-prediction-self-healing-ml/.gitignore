@@ -45,6 +45,7 @@ env/
 .idea/
 *.swp
 *.swo
+.codex/
 
 # Evidently reports (generated)
 reports/

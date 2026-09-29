@@ -204,4 +204,7 @@ def predict(rows: pd.DataFrame, model_path: Path | None = None) -> np.ndarray:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    argparse.ArgumentParser(description=__doc__).parse_args()
     train()

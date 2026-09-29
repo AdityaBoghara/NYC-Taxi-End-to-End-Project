@@ -190,4 +190,7 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    argparse.ArgumentParser(description=__doc__).parse_args()
     run()
