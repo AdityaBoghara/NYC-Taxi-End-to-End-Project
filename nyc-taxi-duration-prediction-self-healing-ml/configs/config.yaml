@@ -81,7 +81,7 @@ training:
 
 mlflow:
   experiment_name: nyc-taxi-duration
-  tracking_uri: mlflow.db
+  tracking_uri: logs/mlflow.db
 
 monitoring:
   mae_degradation_threshold_pct: 15.0   # investigate/train candidate; never auto-promote
@@ -107,8 +107,12 @@ validation:
   min_improvement_pct: 2.0
   max_segment_regression_pct: 5.0
 
+legacy_model:
+  model_path: "models/best_model.pkl"
+  metadata_path: "models/model_metadata.json"
+
 api:
   host: "0.0.0.0"
   port: 8000
-  model_path: "models/best_model.pkl"
-  metadata_path: "models/model_metadata.json"
+  model_path: "models/pretrip_model.pkl"
+  metadata_path: "models/pretrip_metadata.json"

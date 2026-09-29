@@ -7,10 +7,13 @@ data/processed/
 models/
 
 # MLflow experiment tracking
+mlflow.db*
 mlruns/
 
 # Logs
-logs/
+!logs/
+logs/*
+!logs/.gitkeep
 
 # Python
 __pycache__/
