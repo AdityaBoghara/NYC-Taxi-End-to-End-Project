@@ -15,7 +15,7 @@ Use sections 1–6 for the original decision register, section 7 for open choice
 Sources:
 
 - [Project overview and intended architecture](../README.md)
-- [Pre-trip training and prediction](../src/pretrip.py) and [executed experiment](../output/jupyter-notebook/pretrip-eta-baseline.ipynb)
+- [Pre-trip training and prediction](../src/pretrip.py) and [executed experiment](../notebooks/pretrip-eta-baseline.ipynb)
 - [Configuration](../configs/config.yaml) and [configuration loader](../src/config.py)
 - [Data loading notebook](../notebooks/1.%20load_validate_raw_data.ipynb)
 - [EDA and feature engineering notebook](../notebooks/2.%20eda_feature_engineering.ipynb)
@@ -189,7 +189,7 @@ Training: 1,529,266 rows; validation: 684,997; test: 678,572. Exact boundaries a
 
 The pre-trip model reduces test MAE by approximately 48.8% relative to the mean predictor. The historical metadata scores do not reproduce on the current file; the cause has not been established. Do not compare the new score only against 2.5740 or claim that the historical training dataset is identical to the current one.
 
-Artifacts: `models/pretrip_model.pkl`, `models/pretrip_metadata.json`, and `reports/pretrip_comparison.json`. These are git-ignored local outputs. The executed experiment notebook retains the results in versionable form. This workflow saves JSON results rather than adding MLflow runs. It does not change the planned API's configuration to point at the new bundle; serving still needs implementation.
+Artifacts: `models/pretrip_model.pkl`, `models/pretrip_metadata.json`, and `reports/pretrip_comparison.json`. These are git-ignored local outputs. The executed experiment notebook retains the results in versionable form. This workflow saves JSON results rather than adding MLflow runs. The planned API configuration selects this pre-trip bundle; `legacy_model` retains the retrospective artifact paths for comparison and audit. This selection does not approve deployment, and serving still needs implementation.
 
 Validation: seven pytest tests passed; all experiment code cells were executed sequentially in a fresh Python process and their outputs saved. The notebook was also structurally validated. Existing SHAP results apply only to the historical model, and need to be repeated for this one.
 
@@ -520,18 +520,18 @@ The following columns are **excluded** from the model feature set because they a
 
 **Register entries:** D38–D39.
 
-**Decision:** Use SQLite (`mlflow.db`) as the MLflow tracking backend instead of the default filesystem store (`mlruns/`).
+**Decision:** Use SQLite (`logs/mlflow.db`) as the MLflow tracking backend instead of the default filesystem store (`mlruns/`).
 
 **Rationale:**
 - MLflow 3.x deprecated the filesystem backend (February 2026) — it will be removed in a future release
 - SQLite enables the full MLflow feature set: model registry, run comparison, job execution support
 - Zero additional infrastructure — SQLite is a single file, no separate server needed
-- One-time migration: `mlflow db upgrade sqlite:///mlflow.db`
+- One-time migration: `mlflow db upgrade sqlite:///logs/mlflow.db`
 
 **Configuration:**
-- `config.yaml`: `mlflow.tracking_uri: mlflow.db`
-- Notebooks construct the full URI at runtime: `sqlite:///{PROJECT_ROOT}/mlflow.db`
-- UI: `mlflow ui --backend-store-uri sqlite:///mlflow.db --dev`
+- `config.yaml`: `mlflow.tracking_uri: logs/mlflow.db`
+- Notebooks construct the full URI at runtime: `sqlite:///{PROJECT_ROOT}/logs/mlflow.db`
+- UI: `mlflow ui --backend-store-uri sqlite:///logs/mlflow.db --dev`
 
 **Trade-offs:**
 - `--dev` flag required in MLflow 3.x to disable security middleware for local single-user use
