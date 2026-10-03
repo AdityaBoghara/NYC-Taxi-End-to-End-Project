@@ -22,7 +22,7 @@ from xgboost import XGBRegressor
 from src.baselines import RouteMedian
 from src.config import CFG, ROOT, TARGET, ZONE_LOOKUP_PATH
 from src.data_pipeline import POLICY_VERSION, load_month, sha256
-from src.pretrip import FEATURES, build_features, load_geography, metrics
+from src.pretrip import FEATURES, build_features, load_v2_geography, metrics
 from src.promotion import promotion_gate
 from src.replay import join_available_outcomes, simulated_release
 
@@ -67,13 +67,8 @@ def run() -> dict:
     if any(pd.Period(month, "M").start_time < simulated_release(cfg["promotion_month"])
            for month in cfg["holdout_months"]):
         raise ValueError("Holdout prediction months must follow promotion-label availability.")
-    geography = load_geography()
-    lookup = pd.read_csv(ZONE_LOOKUP_PATH)
-    # New schema version: exclude unknown-location placeholders and include EWR.
-    valid = lookup.Borough.isin(["Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island", "EWR"])
-    known_zones = set(lookup.loc[valid, "LocationID"].astype(int))
-    geography["borough_by_zone"] = {key: val for key, val in geography["borough_by_zone"].items() if key in known_zones}
-    geography["airport_zones"] = sorted(lookup.loc[lookup.service_zone.isin(["Airports", "EWR"]), "LocationID"].astype(int).tolist())
+    geography = load_v2_geography(ZONE_LOOKUP_PATH)
+    known_zones = set(geography["borough_by_zone"])
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
     output = ROOT / "models" / "validation_runs" / run_id
     output.mkdir(parents=True, exist_ok=False)

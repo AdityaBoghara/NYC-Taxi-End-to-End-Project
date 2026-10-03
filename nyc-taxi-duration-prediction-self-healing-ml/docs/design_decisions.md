@@ -208,6 +208,8 @@ The recommended entry point is now `python -m src.validation`. Section 9 remains
 
 Results and the outstanding sparse-segment and provenance limitations are recorded in [validation_results.md](validation_results.md). Versioned model artifacts, ledgers, and detailed reports live under `models/validation_runs/`; no active model is overwritten. The old `src.pretrip.train()` and notebook are retained only as historical reproduction paths.
 
+`python -m src.train` is a separate raw-data entry point for a single month's chronological train/validation/test split. It saves an inference-compatible bundle and JSON metadata under `models/training_runs/` without replacing a served model. Seasonal evaluation and promotion evidence still come from `src.validation`.
+
 ## Detailed rationale
 
 The following sections retain the original numbered rationale and EDA observations. Dataset-specific counts and interpretations reflect the original January analysis, not a new validation run. Filtering thresholds are modeling heuristics; they do not prove that all excluded trips are invalid. Current implementation status and qualifications are recorded in D01–D58 above. Open decisions are maintained only in section 7.

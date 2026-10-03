@@ -46,6 +46,20 @@ def load_geography(path: Path = ZONE_LOOKUP_PATH) -> dict:
     }
 
 
+def load_v2_geography(path: Path = ZONE_LOOKUP_PATH) -> dict:
+    geography = load_geography(path)
+    lookup = pd.read_csv(path)
+    valid = lookup.Borough.isin(["Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island", "EWR"])
+    known_zones = set(lookup.loc[valid, "LocationID"].astype(int))
+    geography["borough_by_zone"] = {
+        zone: borough for zone, borough in geography["borough_by_zone"].items() if zone in known_zones
+    }
+    geography["airport_zones"] = sorted(
+        lookup.loc[lookup.service_zone.isin(["Airports", "EWR"]), "LocationID"].astype(int).tolist()
+    )
+    return geography
+
+
 def build_features(rows: pd.DataFrame, geography: dict, rush_hours: list[int]) -> pd.DataFrame:
     """Accept local NYC wall-clock departure timestamps and known TLC zone IDs.
 

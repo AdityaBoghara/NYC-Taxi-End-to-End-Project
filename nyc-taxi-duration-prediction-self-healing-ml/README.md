@@ -35,6 +35,7 @@ nyc-taxi-duration-prediction-self-healing-ml/
 │   ├── config.py               # Load configs/config.yaml
 │   ├── data_pipeline.py        # Download and clean raw data
 │   ├── pretrip.py              # Feature building and local prediction
+│   ├── train.py                # Notebook-free monthly training
 │   ├── baselines.py            # Route-median baseline
 │   ├── validation.py           # Training and seasonal evaluation
 │   ├── promotion.py            # Promotion decision rules
@@ -67,6 +68,16 @@ python -c "import pandas, sklearn, xgboost, mlflow, fastapi; print('OK')"
 ```
 
 ---
+
+## Train from raw data
+
+```bash
+python -m src.data_pipeline 2023-01
+python -m src.train                 # Uses validation.train_month from config
+# python -m src.train --month 2023-02
+```
+
+`src.train` applies the `pretrip-v2` cohort and shared feature builder, makes chronological train/validation/test splits within the selected month, and uses validation for XGBoost early stopping. It writes `model.pkl` and `metadata.json` under a new `models/training_runs/<run_id>/` directory. Metadata includes the raw-data hash, geographic lookup hash, split boundaries, sampled row counts, parameters, and validation/test metrics. No existing model or serving pointer is replaced. Run the seasonal workflow below before considering promotion.
 
 ## Validated pipeline (recommended)
 
@@ -173,13 +184,13 @@ python -m pytest tests/ -v
 - Build the FastAPI endpoints described below.
 - Implement drift detection, evaluation-gated retraining, and model promotion.
 
-The earlier `src.train`, `src.api`, and `src.monitor` commands are not available yet. The project structure above includes the intended architecture, not just implemented files.
+The `src.api` and `src.monitor` commands are not available yet.
 
 ---
 
 ## MLflow Setup
 
-MLflow tracks every training run (params, metrics, model artifacts) in a local SQLite database.
+The historical notebook experiments use MLflow with a local SQLite database. `src.train` writes versioned model and metadata files under `models/training_runs/`; it does not create MLflow runs.
 
 ### First-time setup
 

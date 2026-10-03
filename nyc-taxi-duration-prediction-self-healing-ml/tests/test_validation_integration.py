@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from src import data_pipeline, validation
-from src.pretrip import FEATURES, load_geography, predict
+from src.pretrip import FEATURES, load_v2_geography, predict
 
 
 def test_validation_run_trains_replays_and_writes_inspection_artifacts(tmp_path, monkeypatch):
@@ -51,7 +51,7 @@ def test_validation_run_trains_replays_and_writes_inspection_artifacts(tmp_path,
     monkeypatch.setattr(validation, "ROOT", tmp_path)
     monkeypatch.setattr(data_pipeline, "ROOT", tmp_path)
     monkeypatch.setattr(validation, "ZONE_LOOKUP_PATH", lookup_path)
-    monkeypatch.setattr(validation, "load_geography", lambda: load_geography(lookup_path))
+    monkeypatch.setattr(validation, "load_v2_geography", lambda path: load_v2_geography(lookup_path))
 
     report = validation.run()
     run_dir = tmp_path / "models" / "validation_runs" / report["run_id"]
